@@ -1,5 +1,11 @@
 package fr.graffitiresearchlab;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.Properties;
+
 import org.apache.log4j.PropertyConfigurator;
 import gml4u.drawing.GmlBrushManager;
 import gml4u.events.GmlEvent;
@@ -29,8 +35,8 @@ public class GMLFlip extends PApplet {
 	private static final long serialVersionUID = 5159485317982749825L;
 
 	private final String APP_NAME = "GMLFLIP";
-	private String APP_SUBTITLE = "turns graffiti into flip books";
-	private String APP_DRAW_SOMETHING = 	"Use this area to draw (mouse click while moving mouse)" +
+	private final String APP_SUBTITLE = "turns graffiti into flip books";
+	private final String APP_DRAW_SOMETHING = 	"Use this area to draw (mouse click while moving mouse)" +
 												"\r\nPress x to remove the last stroke" +
 												"\r\nClick CLEAR to reinit" +
 												"\r\nClick EXPORT to create flipbooks (/output folder)" +
@@ -38,34 +44,34 @@ public class GMLFlip extends PApplet {
 												"\r\nDrag&Drop a tag picture to use as guideline" +
 												"\r\nUse the + or - key to zoom in/out" +
 												"\r\nPress spacebar to remove the picture";
-	private String APP_BOTTOM_TITLE = "http://graffitiresearchlab.fr";
+	private final String APP_BOTTOM_TITLE = "http://graffitiresearchlab.fr";
 
-	private String MSG_NOTHING_TO_EXPORT = "Nothing to export, draw something first";
-	private String MSG_NOTHING_TO_SAVE = "Nothing to save, draw something first";
-	private String MSG_EXPORT_PLEASE_WAIT = "Exporting ... please wait ...";
-	private String MSG_SAVE_PLEASE_WAIT = "Saving ... please wait ...";
+	private final String MSG_NOTHING_TO_EXPORT = "Nothing to export, draw something first";
+	private final String MSG_NOTHING_TO_SAVE = "Nothing to save, draw something first";
+	private final String MSG_EXPORT_PLEASE_WAIT = "Exporting ... please wait ...";
+	private final String MSG_SAVE_PLEASE_WAIT = "Saving ... please wait ...";
 	
-	private String MSG_SAVE_ERROR = "An error occured while saving the GML file";
-	private String MSG_SAVE_SUCCESS = "GML file saved to the /gml folder";
+	private final String MSG_SAVE_ERROR = "An error occured while saving the GML file";
+	private final String MSG_SAVE_SUCCESS = "GML file saved to the /gml folder";
 
-	private String MSG_EXPORT_ERROR = "An error occured while exporting the Flipbooks";
-	private String MSG_EXPORT_SUCCESS = "Flipbooks saved to the /output folder";
+	private final String MSG_EXPORT_ERROR = "An error occured while exporting the Flipbooks";
+	private final String MSG_EXPORT_SUCCESS = "Flipbooks saved to the /output folder";
 
-	private String MSG_CANNOT_URL = "Cannot load from URL (local image only)";
-	private String MSG_NOT_AN_IMAGE = "Unsupported image format";
-	private String MSG_LOADING_IMAGE = "Loading image, please wait ...";
-	private String MSG_LOADED_IMAGE = "Image loaded";
+	private final String MSG_CANNOT_URL = "Cannot load from URL (local image only)";
+	private final String MSG_NOT_AN_IMAGE = "Unsupported image format";
+	private final String MSG_LOADING_IMAGE = "Loading image, please wait ...";
+	private final String MSG_LOADED_IMAGE = "Image loaded";
 	
-	private String UI_IMAGES_TAG = "PAGES/TAG";
-	private String UI_ROWS_PAGE = "ROWS/PAGE";
-	private String UI_RECORDING = "RECORDING";
+	private final String UI_IMAGES_TAG = "PAGES/TAG";
+	private final String UI_ROWS_PAGE = "ROWS/PAGE";
+	private final String UI_RECORDING = "RECORDING";
 	
-	private String UI_CLEAR = "CLEAR";
-	private String UI_EXPORT = "EXPORT";
-	private String UI_SAVE = "SAVE";
+	private final String UI_CLEAR = "CLEAR";
+	private final String UI_EXPORT = "EXPORT";
+	private final String UI_SAVE = "SAVE";
 	
-	private String img_output_folder = "output";
-	private String gml_output_folder = "gml";
+	private final String IMG_OUTPUT_FOLDER = "output";
+	private final String GML_OUTPUT_FOLDER = "gml";
 
 	private int textColor = color(185, 25, 123);
 	private int bgColor = color(239, 232, 69);
@@ -101,9 +107,9 @@ public class GMLFlip extends PApplet {
 	private int drawingPadWidth;
 	private int drawingPadHeight;
 	
-	private PImage silhouette;
+	private PImage topRightImage;
 	private PImage logo;
-	private PImage splash;
+	private PImage bottomRightImage;
 	
 	private PImage bgImage;
 	private float bgRatio = 1;
@@ -112,13 +118,50 @@ public class GMLFlip extends PApplet {
 
 	private SDrop sdrop;
 
+	private Properties loc;
+	private Properties gmlflip;
 
 	public void setup() {
 		size(800, 600, OPENGL);
 		frameRate(60);
 		
+		// GML4U logs config
 		PropertyConfigurator.configure(sketchPath("data")+"/log4j.properties");
-		//textSize(12);
+		
+		// Localization
+		loc = new Properties();
+		try {
+			FileInputStream fis = new FileInputStream(sketchPath("data")+"/loc_EN.properties");
+			loc.load(fis);
+		} catch (FileNotFoundException e) {
+			// TODO log it
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO log it
+			e.printStackTrace();
+		}
+		
+		// App properties
+		gmlflip = new Properties();
+		try {
+			FileInputStream fis = new FileInputStream(sketchPath("data")+"/gmlflip.properties");
+			gmlflip.load(fis);
+		} catch (FileNotFoundException e) {
+			// TODO log it
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO log it
+			e.printStackTrace();
+		}
+		
+		// Create output folders
+		String path = "";
+		path = sketchPath+"/"+gmlflip.getProperty("img_output_folder", IMG_OUTPUT_FOLDER);
+		(new File(path)).mkdirs();
+		path = sketchPath+"/"+gmlflip.getProperty("gml_output_folder", GML_OUTPUT_FOLDER);
+		(new File(path)).mkdirs();
+		
+		
 		smooth();
 		background(bgColor);
 		
@@ -143,23 +186,23 @@ public class GMLFlip extends PApplet {
 		int x = drawingPadX;
 		int y = 85;
 
-		new Label(this, "imgPerTag", x, y, 100, 20, UI_IMAGES_TAG, textColor);
+		new Label(this, "imgPerTag", x, y, 100, 20, loc.getProperty("ui_images_tag", UI_IMAGES_TAG), textColor);
 		imagesPerTag = new MinusPlus(this, "imagesPerTag", x, y+25, 70, 20, "pages", 25, 10, 50, textColor, bgColor);
 
-		new Label(this, "rowsPerPage", x+=90, y, 100, 20, UI_ROWS_PAGE, textColor);
+		new Label(this, "rowsPerPage", x+=90, y, 100, 20, loc.getProperty("ui_rows_page", UI_ROWS_PAGE), textColor);
 		rowsPerPage = new MinusPlus(this, "rowsPerPage", x, y+25, 70, 20, "pages", 8, 4, 10, textColor, bgColor);
 
-		new Label(this, "Recording", x+=130, y, 100, 20, UI_RECORDING, textColor);
-		clearButton = new Button(this, "clear", x, y+=25, 80, 20, UI_CLEAR, textColor, bgColor);
-		exportButton = new Button(this, "export", x+=90, y, 80, 20, UI_EXPORT, textColor, bgColor);
-		saveButton = new Button(this, "save", x+=90, y, 80, 20, UI_SAVE, textColor, bgColor);
+		new Label(this, "Recording", x+=130, y, 100, 20, loc.getProperty("ui_recording", UI_RECORDING), textColor);
+		clearButton = new Button(this, "clear", x, y+=25, 80, 20, loc.getProperty("ui_clear", UI_CLEAR), textColor, bgColor);
+		exportButton = new Button(this, "export", x+=90, y, 80, 20, loc.getProperty("ui_export", UI_EXPORT), textColor, bgColor);
+		saveButton = new Button(this, "save", x+=90, y, 80, 20, loc.getProperty("ui_save", UI_SAVE), textColor, bgColor);
 
 		timerLabel = new Label(this, "Timer", drawingPadX + 20, drawingPadY+drawingPadHeight-30, 40, 20, "", textColor);
 		infoLabel = new Label(this, "info", 20, height-30, 300, 20, "", textColor);
 		
-		silhouette = loadImage(sketchPath("data")+"/Silhouette.png");
+		topRightImage = loadImage(sketchPath("data")+"/"+gmlflip.getProperty("top_right_image","Silhouette.png"));
 		logo = loadImage(sketchPath("data")+"/GRLFR_Logo.png");
-		splash = loadImage(sketchPath("data")+"/Splash.png");
+		bottomRightImage = loadImage(sketchPath("data")+"/"+gmlflip.getProperty("bottom_right_image","Splash.png"));
 		
 		sdrop = new SDrop(this);
 		
@@ -195,12 +238,12 @@ public class GMLFlip extends PApplet {
 			saveButton.isClicked(false);
 			Gml gml = recorder.getGml();
 			if (gml.getStrokes().size() == 0) {
-				infoLabel.setName(MSG_NOTHING_TO_SAVE);							
+				infoLabel.setName(loc.getProperty("msg_nothing_to_save", MSG_NOTHING_TO_SAVE));							
 			}
 			else {
 				// Save
-				infoLabel.setName(MSG_SAVE_PLEASE_WAIT);			
-				saver.save(gml, sketchPath+"/"+gml_output_folder+"/"+System.currentTimeMillis()+".gml");
+				infoLabel.setName(loc.getProperty("msg_save_please_wait", MSG_SAVE_PLEASE_WAIT));			
+				saver.save(gml, sketchPath+"/" + gmlflip.getProperty("gml_output_folder",GML_OUTPUT_FOLDER) +"/"+System.currentTimeMillis()+".gml");
 			}
 		
 		}
@@ -212,12 +255,12 @@ public class GMLFlip extends PApplet {
 			
 			Gml gml = recorder.getGml();
 			if (gml.getStrokes().size() == 0) {
-				infoLabel.setName(MSG_NOTHING_TO_EXPORT);							
+				infoLabel.setName(loc.getProperty("msg_nothing_to_export", MSG_NOTHING_TO_EXPORT));							
 			}
 			else {
 				// Export
 				infoLabel.setName(MSG_EXPORT_PLEASE_WAIT);			
-				export.execute(gml, sketchPath+"/"+img_output_folder, rowsPerPage.getValue(), imagesPerTag.getValue());
+				export.execute(gml, sketchPath+"/" + gmlflip.getProperty("img_output_folder", IMG_OUTPUT_FOLDER), rowsPerPage.getValue(), imagesPerTag.getValue());
 			}
 		}
 
@@ -236,13 +279,13 @@ public class GMLFlip extends PApplet {
 	public void dropEvent(DropEvent event) {
 
 		if (event.isURL()) {
-			infoLabel.setName(MSG_CANNOT_URL);
+			infoLabel.setName(loc.getProperty("msg_cannot_url", MSG_CANNOT_URL));
 		}
 
 		// if the dropped object is an image, then 
 		// load the image into our PImage.
 		if(event.isImage()) {
-			infoLabel.setName(MSG_LOADING_IMAGE);
+			infoLabel.setName(loc.getProperty("msg_loading_image", MSG_LOADING_IMAGE));
 			bgImage = loadImage(event.filePath());
 			float ratio = bgImage.width/bgImage.height;
 			if (ratio > 1) { // Landscape
@@ -251,20 +294,20 @@ public class GMLFlip extends PApplet {
 			else { // Portrait
 				bgImage.resize((int) (drawingPadHeight*bgImage.width/bgImage.height), drawingPadHeight);
 			}
-			infoLabel.setName(MSG_LOADED_IMAGE);
+			infoLabel.setName(loc.getProperty("msg_loaded_image", MSG_LOADED_IMAGE));
 			
 		}
 		else {
-			infoLabel.setName(MSG_NOT_AN_IMAGE);
+			infoLabel.setName(loc.getProperty("msg_not_an_image", MSG_NOT_AN_IMAGE));
 		}
 	}
 	
 	public void exportEvent(ExportEvent event) {
 		if (event.succeed) {
-			infoLabel.setName(MSG_EXPORT_SUCCESS);
+			infoLabel.setName(loc.getProperty("msg_export_success", MSG_EXPORT_SUCCESS));
 		}
 		else {
-			infoLabel.setName(MSG_EXPORT_ERROR);
+			infoLabel.setName(loc.getProperty("msg_export_error", MSG_EXPORT_ERROR));
 		}
 	}
 
@@ -272,10 +315,10 @@ public class GMLFlip extends PApplet {
 		if (event instanceof GmlSavingEvent) {
 			GmlSavingEvent evt = (GmlSavingEvent) event;
 			if (evt.successful) {
-				infoLabel.setName(MSG_SAVE_SUCCESS);
+				infoLabel.setName(loc.getProperty("msg_save_success", MSG_SAVE_SUCCESS));
 			}
 			else {
-			 	infoLabel.setName(MSG_SAVE_ERROR);
+			 	infoLabel.setName(loc.getProperty("msg_save_error", MSG_SAVE_ERROR));
 			}
 		}
 		
@@ -296,7 +339,6 @@ public class GMLFlip extends PApplet {
 			recorder.removeLastStroke(0);
 		}
 		infoLabel.setName("");
-		
 	}
 
 	public void mouseClicked() {
@@ -386,36 +428,37 @@ public class GMLFlip extends PApplet {
 		textAlign(LEFT);
 		fill(255);
 		textSize(60);
-		text(APP_NAME, x, y);
+		text(loc.getProperty("app_name", APP_NAME), x, y);
 
 		// Subtitle
 		textAlign(LEFT);
-		x += textWidth(APP_NAME);
+		x += textWidth(loc.getProperty("app_name", APP_NAME));
 		textSize(20);
 		fill(255);
-		text(APP_SUBTITLE.toUpperCase(), x, y);
+		text(loc.getProperty("app_subtitle", APP_SUBTITLE).toUpperCase(), x, y);
 
 		textAlign(LEFT);
 		noFill();//fill(255, 250);
 		stroke(textColor);
 		rect(drawingPadX, drawingPadY, drawingPadWidth, drawingPadHeight);
 
-		fill(textColor);
+	
+		imageMode(CORNER);
+		image(topRightImage, width-topRightImage.width-10, 10);
+	
+		imageMode(CORNER);
+		image(bottomRightImage, width-bottomRightImage.width, height-bottomRightImage.height);
+
+		fill(bgColor);
 		textAlign(RIGHT);
 		textSize(12);
-		text(APP_BOTTOM_TITLE, drawingPadX + drawingPadWidth, height-25);
+		text(loc.getProperty("app_bottom_title", APP_BOTTOM_TITLE), drawingPadX + drawingPadWidth, height-15);
 		popStyle();
-	
-		imageMode(CORNER);
-		image(silhouette, width-silhouette.width-10, 10);
-	
-		imageMode(CORNER);
-		image(splash, width-splash.width, height-splash.height);
 		
 		fill(textColor);
 		textAlign(LEFT);
 		textSize(14);
-		text(APP_DRAW_SOMETHING, drawingPadX+10, drawingPadY + 20);
+		text(loc.getProperty("app_draw_something", APP_DRAW_SOMETHING), drawingPadX+10, drawingPadY + 20);
 
 
 
